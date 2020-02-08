@@ -11,6 +11,12 @@ type binSearch struct {
 	size int64
 }
 
+type record struct {
+	pos int64
+	len int64
+	con string
+}
+
 func NewBinSearch(path string) (err error, bs *binSearch) {
 	fdb, err := os.Open(path)
 	if err != nil {
@@ -32,35 +38,41 @@ func (bs *binSearch) close() {
 	}
 }
 
-func (bs *binSearch) nextRec(pos int64) (err error, rpos int64, address string) {
+func (bs *binSearch) ScanNext(pos int64) (err error, rpos int64, address string, eof bool) {
 	bs.fdb.Seek(pos, 0)
+
 	scanner := bufio.NewScanner(bs.fdb)
 	if scanner.Scan() == false {
-		panic("Can't read it")
+		return nil, pos, scanner.Text(), true
 	}
 	rpos = pos + int64(len(scanner.Text()))
-	fmt.Printf("read rec %s\n", scanner.Text())
 
 	if scanner.Scan() == false {
-		panic("Can't read it")
+		return nil, rpos, scanner.Text(), true
 	}
-	fmt.Printf("Real pos: %d, line: %s", rpos, scanner.Text())
-	return nil, rpos, scanner.Text()
+	return nil, rpos, scanner.Text(), false
 }
 
-func (bs *binSearch) have(query string) (found bool) {
+func (bs *binSearch) Have(query string) (found bool) {
 	beg := int64(0)
 	end := bs.size
 	pos := (beg + end) / 2
+	eof := false
+
+	var err error
+	var rec string
 
 	for {
-		err, pos, rec := bs.nextRec(pos)
+		err, pos, rec, eof = bs.ScanNext(pos)
 		if err != nil {
 			panic(err)
 		}
 		switch {
 		case rec == query:
 			return true
+
+		case eof:
+			return false
 
 		case rec < query:
 			beg = pos
@@ -85,8 +97,8 @@ func main() {
 		panic(err)
 	}
 
-	searchAddress := "0009999821Hello@World"
-	fmt.Printf("searching %s", searchAddress)
-	fmt.Printf("found in the %s", bs.have(searchAddress))
+	searchAddress := "p000000020Hello@World"
+	fmt.Printf("searching %s\n", searchAddress)
+	fmt.Printf("found in the: %t\n", bs.Have(searchAddress))
 	os.Exit(0)
 }
