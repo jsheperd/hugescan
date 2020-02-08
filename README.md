@@ -5,5 +5,5 @@ The targeted use case is replace huge postgres database in TB size with file on 
 
 # references
 
-sorting: http://code.activestate.com/recipes/466302/
-python version: http://www.logarithmic.net/pfh/blog/01186620415
+sorting: http://code.activestate.com/recipes/466302/  
+python version: http://www.logarithmic.net/pfh/blog/01186620415  
