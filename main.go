@@ -6,18 +6,19 @@ import (
 	"os"
 )
 
-type binSearch struct {
+type BinSearch struct {
 	fdb  *os.File // the "database" file pointer
 	size int64
 }
 
-type record struct {
+type Record struct {
 	pos int64
 	len int64
 	con string
+	eof bool
 }
 
-func NewBinSearch(path string) (err error, bs *binSearch) {
+func NewBinSearch(path string) (err error, bs *BinSearch) {
 	fdb, err := os.Open(path)
 	if err != nil {
 		return err, nil
@@ -28,64 +29,84 @@ func NewBinSearch(path string) (err error, bs *binSearch) {
 		panic(err)
 	}
 
-	return nil, &binSearch{fdb: fdb, size: fi.Size()}
+	return nil, &BinSearch{fdb: fdb, size: fi.Size()}
 }
 
-func (bs *binSearch) close() {
+func (bs *BinSearch) Close() {
 	if bs.fdb != nil {
 		bs.fdb.Close()
 		bs.fdb = nil
 	}
 }
 
-func (bs *binSearch) ScanNext(pos int64) (err error, rpos int64, address string, eof bool) {
-	bs.fdb.Seek(pos, 0)
+/*****************************************************************/
+/*  Scan a record from the given position, it could be a halfone */
+/*****************************************************************/
+func (bs *BinSearch) ScanRecord(pos int64) (rec Record) {
+	if pos >= bs.size {
+		return Record{pos: bs.size, len: 0, con: "", eof: true}
+	}
 
 	scanner := bufio.NewScanner(bs.fdb)
 	if scanner.Scan() == false {
-		return nil, pos, scanner.Text(), true
+		return Record{pos: bs.size, len: 0, con: "", eof: true}
 	}
-	rpos = pos + int64(len(scanner.Text()))
 
-	if scanner.Scan() == false {
-		return nil, rpos, scanner.Text(), true
-	}
-	return nil, rpos, scanner.Text(), false
+	return Record{pos: pos, len: int64(len(scanner.Text())), con: scanner.Text(), eof: false}
 }
 
-func (bs *binSearch) Have(query string) (found bool) {
-	beg := int64(0)
-	end := bs.size
-	pos := (beg + end) / 2
-	eof := false
+/*****************************************************************/
+/*  Scan the following record                                    */
+/*****************************************************************/
+func (bs *BinSearch) NextRecord(rec *Record) (next *Record) {
+	return &bs.ScanRecord(rec.pos + rec.len)
+}
 
-	var err error
-	var rec string
+/*****************************************************************/
+/*  Scan a complete record between begin and end                 */
+/*****************************************************************/
+func (bs *BinSearch) MidRecord(begin *Record, end *Record) (mid *Record) {
+	midPos := (begin.pos + begin.len + end.pos) / 2
+	midRec := bs.ScanRecord(midPos)
+	nextRec := bs.NextRecord(&midRec)
 
-	for {
-		err, pos, rec, eof = bs.ScanNext(pos)
-		if err != nil {
-			panic(err)
-		}
+	switch {
+	case nextRec.pos != end.pos:
+		return nextRec
+
+	case begin.pos == end.pos:
+		return begin
+
+	default:
+		return bs.NextRecord(begin)
+	}
+}
+
+func (bs *BinSearch) Have(query string) (found bool) {
+	begin := bs.ScanRecord(0)     // the first line
+	end := bs.ScanRecord(bs.size) // last pos
+
+	if query < begin.con {
+		return false
+	}
+
+	if query == begin.con {
+		return true
+	}
+
+	for begin.pos != end.pos {
+		mid := bs.MidRecord(begin, end)
 		switch {
-		case rec == query:
+		case mid.con == query:
 			return true
 
-		case eof:
-			return false
-
-		case rec < query:
-			beg = pos
-			pos = (beg + end) / 2
+		case mid.con < query:
+			begin = mid
 			continue
 
-		case rec > query:
-			end = pos
-			pos = (beg + end) / 2
+		case mid.con > query:
+			end = mid
 			continue
-
-		case beg == end:
-			return false
 		}
 	}
 }
