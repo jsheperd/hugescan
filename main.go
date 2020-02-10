@@ -58,8 +58,9 @@ func (bs *BinSearch) ScanRecord(pos int64) (rec Record) {
 /*****************************************************************/
 /*  Scan the following record                                    */
 /*****************************************************************/
-func (bs *BinSearch) NextRecord(rec *Record) (next *Record) {
-	return &bs.ScanRecord(rec.pos + rec.len)
+func (bs *BinSearch) NextRecord(rec *Record) *Record {
+	next := bs.ScanRecord(rec.pos + rec.len)
+	return &next
 }
 
 /*****************************************************************/
@@ -95,25 +96,26 @@ func (bs *BinSearch) Have(query string) (found bool) {
 	}
 
 	for begin.pos != end.pos {
-		mid := bs.MidRecord(begin, end)
+		mid := bs.MidRecord(&begin, &end)
 		switch {
 		case mid.con == query:
 			return true
 
 		case mid.con < query:
-			begin = mid
+			begin = *mid
 			continue
 
 		case mid.con > query:
-			end = mid
+			end = *mid
 			continue
 		}
 	}
+	return false
 }
 
 func main() {
 	err, bs := NewBinSearch("sample.txt")
-	defer bs.close()
+	defer bs.Close()
 	if err != nil {
 		panic(err)
 	}
