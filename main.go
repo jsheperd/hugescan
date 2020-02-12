@@ -47,19 +47,21 @@ func (bs *BinSearch) ScanRecord(pos int64) (rec Record) {
 		return Record{pos: bs.size, len: 0, con: "", eof: true}
 	}
 
+	bs.fdb.Seek(pos, 0)
+
 	scanner := bufio.NewScanner(bs.fdb)
-	if scanner.Scan() == false {
-		return Record{pos: bs.size, len: 0, con: "", eof: true}
+	if scanner.Scan() {
+		return Record{pos: pos, len: int64(len(scanner.Text())), con: scanner.Text(), eof: false}
 	}
 
-	return Record{pos: pos, len: int64(len(scanner.Text())), con: scanner.Text(), eof: false}
+	return Record{pos: bs.size, len: 0, con: "", eof: true}
 }
 
 /*****************************************************************/
 /*  Scan the following record                                    */
 /*****************************************************************/
 func (bs *BinSearch) NextRecord(rec *Record) *Record {
-	next := bs.ScanRecord(rec.pos + rec.len)
+	next := bs.ScanRecord(rec.pos + rec.len + 1)
 	return &next
 }
 
@@ -68,18 +70,19 @@ func (bs *BinSearch) NextRecord(rec *Record) *Record {
 /*****************************************************************/
 func (bs *BinSearch) MidRecord(begin *Record, end *Record) (mid *Record) {
 	midPos := (begin.pos + begin.len + end.pos) / 2
-	midRec := bs.ScanRecord(midPos)
+	midRec := bs.ScanRecord(midPos) // It could be a half record
 	nextRec := bs.NextRecord(&midRec)
 
 	switch {
-	case nextRec.pos != end.pos:
-		return nextRec
-
-	case begin.pos == end.pos:
+	case begin.pos == end.pos: // the search intervall is zero
 		return begin
 
+	case nextRec.pos >= end.pos: // nextRec is out of the bound
+		nextRec = bs.NextRecord(begin)
+		return nextRec
+
 	default:
-		return bs.NextRecord(begin)
+		return nextRec
 	}
 }
 
@@ -88,15 +91,18 @@ func (bs *BinSearch) Have(query string) (found bool) {
 	end := bs.ScanRecord(bs.size) // last pos
 
 	if query < begin.con {
+		//fmt.Println("search is below the first record")
 		return false
 	}
 
 	if query == begin.con {
+		//fmt.Println("search is on the first record")
 		return true
 	}
 
 	for begin.pos != end.pos {
 		mid := bs.MidRecord(&begin, &end)
+		//fmt.Println(begin, mid, end)
 		switch {
 		case mid.con == query:
 			return true
@@ -120,7 +126,7 @@ func main() {
 		panic(err)
 	}
 
-	searchAddress := "p000000020Hello@World"
+	searchAddress := "-0000004hsasahjHello@World+"
 	fmt.Printf("searching %s\n", searchAddress)
 	fmt.Printf("found in the: %t\n", bs.Have(searchAddress))
 	os.Exit(0)

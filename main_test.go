@@ -19,6 +19,12 @@ func TestMain(m *testing.M) {
 
 // Create the test database
 func setup() {
+	err, bs := NewBinSearch("sample.txt")
+	defer bs.Close()
+	if err != nil {
+		panic(err)
+	}
+
 	f, err := os.Create(sample)
 	if err != nil {
 		fmt.Println(err)
@@ -27,14 +33,14 @@ func setup() {
 	defer f.Close()
 
 	b := bufio.NewWriter(f)
-	_, err = fmt.Fprintf(b, "Email addressess below, this first line is only for title!\n")
+	//_, err = fmt.Fprintf(b, "Email addressess below, this first line is only for title!\n")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
 	for i := 0; i < recnum; i++ {
-		_, err := fmt.Fprintf(b, "%08dHello@World\n", i)
+		_, err := fmt.Fprintf(b, "-%08dHello@World+\n", i)
 		if err != nil {
 			fmt.Println(err)
 			return
@@ -49,50 +55,78 @@ func shutdown() {
 	//os.Remove(sample)
 }
 
-func TestBinSearch(t *testing.T) {
+func TestSecond(t *testing.T) {
 	err, bs := NewBinSearch("sample.txt")
-	defer bs.close()
+	defer bs.Close()
 	if err != nil {
 		panic(err)
 	}
 
-	_, pos, rec, _ := bs.ScanNext(0)
+	rec := bs.ScanRecord(0)
+	fmt.Println(rec)
+	rec = bs.ScanRecord(8)
+	fmt.Println(rec)
 
-	if pos != 59 {
-		t.Errorf("bs.nextRec(0) = %d; want 59, rec:%s\n", pos, rec)
+	n := bs.NextRecord(&rec)
+	fmt.Println(n)
+
+	if n.pos != 22 {
+		t.Errorf("bs.nextRec(0) = %d; want 22, rec:%s\n", n.pos, n.con)
+	}
+}
+
+func TestLast(t *testing.T) {
+	err, bs := NewBinSearch("sample.txt")
+	defer bs.Close()
+	if err != nil {
+		panic(err)
 	}
 
-	_, nPos, nRec, _ := bs.ScanNext(pos)
+	rec := bs.ScanRecord(bs.size)
+	fmt.Println(rec)
+	if rec.pos != bs.size {
+		t.Errorf("bs.ScanRecord(bs.size) != bs.size\n")
+	}
 
-	if pos == nPos {
-		t.Errorf("bs.nextRec(%d) = %d; want different than %d, rec:%s\n", pos, nPos, pos, nRec)
+	rec = bs.ScanRecord(bs.size)
+	last := bs.NextRecord(&rec)
+	fmt.Println(last)
+	if last.pos != bs.size {
+		t.Errorf("bs.ScanRecord(bs.size) != bs.size\n")
+	}
+
+	rec = bs.ScanRecord(bs.size - 25)
+	last = bs.NextRecord(&rec)
+	last = bs.NextRecord(last)
+	fmt.Println(last)
+	if last.pos != bs.size {
+		t.Errorf("bs.ScanRecord(bs.size) != bs.size\n")
 	}
 }
 
 func TestBinSearchScanNext(t *testing.T) {
 	err, bs := NewBinSearch("sample.txt")
-	defer bs.close()
+	defer bs.Close()
 	if err != nil {
 		panic(err)
 	}
 
-	err, pos, rec, eof := bs.ScanNext(0)
-	fmt.Println(err, pos, rec, eof, len(rec))
-	err, pos, rec, eof = bs.ScanNext(58)
-	fmt.Println(err, pos, rec, eof, len(rec))
-	err, pos, rec, eof = bs.ScanNext(59)
-	fmt.Println(err, pos, rec, eof, len(rec))
-	err, pos, rec, eof = bs.ScanNext(60)
-	fmt.Println(err, pos, rec, eof, len(rec))
+	rec := bs.ScanRecord(0)
+	fmt.Println(rec)
+	rec = bs.ScanRecord(58)
+	fmt.Println(rec)
+	rec = bs.ScanRecord(59)
+	fmt.Println(rec)
+	rec = bs.ScanRecord(60)
+	fmt.Println(rec)
 	fmt.Println(bs.size)
 
-	err, pos, rec, eof = bs.ScanNext(859)
-	fmt.Println(err, pos, rec, eof)
+	fmt.Println(rec)
 }
 
 func TestBinSearchHave(t *testing.T) {
 	err, bs := NewBinSearch("sample.txt")
-	defer bs.close()
+	defer bs.Close()
 	if err != nil {
 		panic(err)
 	}
